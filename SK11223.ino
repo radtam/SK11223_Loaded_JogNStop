@@ -271,7 +271,8 @@ uint32_t Time1000ms;
 
 HX711 scale;
 float calibration_factor = -7050.0; // Adjust this value during calibration
-float threshold_force = 10.0;       // Initial threshold in whatever units your load cell measures (lbs)
+float min_threshold_force = 10.0;       // Initial min threshold in whatever units your load cell measures (lbs)
+float max_threshold_force = 20.0;       // Initial max threshold in whatever units your load cell measures (lbs)
 float current_force = 0.0;
 
 void setup() {
@@ -1070,9 +1071,9 @@ void monitorCycleTest(void) {
         Serial.print("Current force: ");
         Serial.print(current_force);
         Serial.print(" | Threshold: ");
-        Serial.println(threshold_force);
+        Serial.println(min_threshold_force);
         
-        if (current_force >= threshold_force) {
+        if (current_force >= min_threshold_force) {
           myCycleTest.index = 9;  // Proceed if force is above threshold
           delay(10);
         } else {
@@ -1162,7 +1163,7 @@ void parseCmd() {
   else if (inCmd == "GOTO") parseGOTO();
   else if (inCmd == "MOVE") parseMOVE();
   else if (inCmd == "CALI") calibrateLoadCell();
-  else if (inCmd == "THR:") threshold();
+  else if (inCmd == "THRE") threshold();
 }
 
 void stopMotor() {
@@ -1248,8 +1249,21 @@ void calibrateLoadCell() {
 }
 
 void threshold() {
-    String value_str = inStr.substring(4);
-    threshold_force = value_str.toFloat();
-    Serial.print("Threshold set to: ");
-    Serial.println(threshold_force);
+    Serial.println("Enter the minimum threshold force in pounds");
+    while (!Serial.available()) {
+      delay(100);
+    }
+    String value_str = Serial.readStringUntil('\n');
+    float min_threshold_force = value_str.toFloat();
+    Serial.print("Min threshold set to: ");
+    Serial.println(min_threshold_force);
+    
+    Serial.println("Enter the maximum threshold force in pounds");
+    while (!Serial.available()) {
+      delay(100);
+    }
+    String value_str1 = Serial.readStringUntil('\n');
+    float max_threshold_force = value_str1.toFloat();
+    Serial.print("Max threshold set to: ");
+    Serial.println(max_threshold_force);
   }
