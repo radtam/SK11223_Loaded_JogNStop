@@ -1,9 +1,11 @@
+//Trying to change the calibration and stuff from the serial monitor to be done in the menu with buttons
+
 #include <AccelStepper.h>
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
 #include <avr/pgmspace.h>
 #include "TimerOne.h"
-#include <HX711.h> //Loadcell
+#include <HX711.h>
 
 //*******************************************************
 //**** AVAILABLE IO ON THE ARDUINO LCD KEYPAD SHIELD ****
@@ -25,9 +27,8 @@
 //*******************************************************
 //****							 ****
 //*******************************************************
-#define LOADCELL_DOUT_PIN D2  // Data pin for HX711
-#define LOADCELL_SCK_PIN D3   // Clock pin for HX711
-
+#define LOADCELL_DOUT_PIN D2    // Data pin for HX711
+#define LOADCELL_SCK_PIN D3     // Clock pin for HX711
 #define STEP_PIN	D11			// Step pin
 #define DIR_PIN		D12			// Direction pin
 #define EN_PIN		D13			// Enable pin (not used currently but is wired)
@@ -94,13 +95,11 @@ const char display39[] PROGMEM = "Move to ?       ";
 const char display40[] PROGMEM = "Mtr Ctrl Active ";
 //						         "0123456789012345"
 const char display41[] PROGMEM = "Set JOG?        ";  //added for jog n stop
-const char display42[] PROGMEM = "Load Cell Config";
-const char display43[] PROGMEM = "Calibrate";         //Load cell stuff
-const char display44[] PROGMEM = "Set Threshold";     //Load cell stuff
-const char display45[] PROGMEM = "Set Calib Weight";  //Load cell stuff
-const char display46[] PROGMEM = "Remove weight   ";  //Load cell stuff
-const char display47[] PROGMEM = "Place known wt  ";  //Load cell stuff
-const char display48[] PROGMEM = "Calibration done";  //Load cell stuff
+const char display42[] PROGMEM = "Is Zero?        ";
+const char display43[] PROGMEM = "Cali(lbs): 01234";
+const char display44[] PROGMEM = "Thres(lbs):01234";
+const char display45[] PROGMEM = "Reading:   01234";
+
 
 const char* const myDISPLAY[] PROGMEM = { display0, display1, display2, display3, display4, display5,
                                           display6, display7, display8,  display9, display10, display11,
@@ -109,8 +108,7 @@ const char* const myDISPLAY[] PROGMEM = { display0, display1, display2, display3
                                           display24, display25, display26, display27, display28, display29,
                                           display30, display31, display32, display33, display34, display35,
                                           display36, display37, display38, display39, display40, display41,
-                                          display42, display43, display44, display45, display46, display47, 
-                                          display48 };
+                                          display42, display43, display44, display45};
 
 #define INDEX_PROG_VER		0
 #define INDEX_MENU			1
@@ -154,19 +152,15 @@ const char* const myDISPLAY[] PROGMEM = { display0, display1, display2, display3
 #define INDEX_MOVE_TO_POS	39
 #define INDEX_MOTOR_ACTIVE	40
 #define INDEX_SET_JOG  41
-
-#define INDEX_LOAD_CELL_CONFIG 42
+#define INDEX_TARE  42
 #define INDEX_CALIBRATE 43
-#define INDEX_SET_THRESHOLD 44
-#define INDEX_SET_CALIB_WEIGHT 45
-#define INDEX_REMOVE_WEIGHT 46
-#define INDEX_PLACE_WEIGHT 47
-#define INDEX_CALIB_DONE 48
+#define INDEX_FORCE_THRESHOLD 44
+#define INDEX_READING 45
 
 #define MAX_MAIN_MENU		5
 #define MAX_SUB_MENU		5
-//MAIN MENU    STPR MENUs   CYCLE MENUs     MTR CTRL MENUs    LOAD CELL MENUs
-uint8_t menuLCD[MAX_MAIN_MENU][MAX_SUB_MENU] = { {1, 2, 3, 5, 0}, {6, 7, 8, 0, 0}, {13, 15, 29, 0, 0}, {27, 28, 41, 39, 16}, {43, 44, 45, 0, 0} };
+//MAIN MENU    STPR MENUs   CYCLE MENUs     MTR CTRL MENUs    Limit MENUs
+uint8_t menuLCD[MAX_MAIN_MENU][MAX_SUB_MENU] = { {1, 2, 3, 5, 0}, {6, 7, 8, 0, 0}, {13, 15, 29, 0, 0}, {27, 28, 41, 39, 16}, {42, 43, 44, 45, 0} };
 
 #define BUFFER_SIZE		20
 char dispBuffer[BUFFER_SIZE];		// dispBuffer will be used to pull the strings out of program memory and placed in RAM...
@@ -275,6 +269,11 @@ AccelStepper myStepperDrive(1, STEP_PIN, DIR_PIN);
 uint32_t Time100ms;
 uint32_t Time1000ms;
 
+HX711 scale;
+float calibration_factor = -7050.0; // Adjust this value during calibration
+float threshold_force = 10.0;       // Initial threshold in whatever units your load cell measures (lbs)
+float current_force = 0.0;
+
 void setup() {
 
 
@@ -295,6 +294,10 @@ void setup() {
 
   pinMode(0, INPUT);
   //pinMode(BREAK_BEAM_PIN, INPUT);
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale();
+  scale.tare();  // Reset the scale to 0
+
 }
 
 void loop() {
@@ -1004,9 +1007,6 @@ void updateCycleStatus(void) {
 }
 ///////////////////////////////////////////////////////////////////////
 void monitorCycleTest(void) {
-  // this function will be called 10 times per second...
-#define MAX_RETRIES		5
-
   static uint8_t num_of_tries = 0;
   uint32_t time_ms = 0;		// variable that converts the ticks variable into milliseconds... 1 tick = 10msec
   time_ms = millis()-sTime;
@@ -1062,18 +1062,24 @@ void monitorCycleTest(void) {
           sTime = millis();
         }
       case 8:
-        delay(8000);
+        delay(500);  // Keep your existing delay if needed
+        current_force = scale.get_units(10);  // Take average of 10 readings
         myCycleTest.move_time = (time_ms / 1000);
         sTime = millis();
-        if (digitalRead(0) == HIGH) //then shade is up
-        {
-          myCycleTest.index = 9;
+        
+        Serial.print("Current force: ");
+        Serial.print(current_force);
+        Serial.print(" | Threshold: ");
+        Serial.println(threshold_force);
+        
+        if (current_force >= threshold_force) {
+          myCycleTest.index = 9;  // Proceed if force is above threshold
           delay(10);
-        }
-        else 
-        {
+        } else {
+          // Pause here - stay in case 8 until threshold is met
+          updateDisplay(0, INDEX_CYCLE_PAUSED);
+          Serial.println("Force below threshold - cycle paused");
           myCycleTest.index = 3;
-          delay(10);
         }
         break;
       case 9:       // move to top position
@@ -1144,9 +1150,9 @@ void serialEvent() {
 }
 
 void parseCmd() {
-  inCmd = inStr.substring(0, 4);									// parse out the 4 char command
+  inCmd = inStr.substring(0, 4);
 
-  if (inCmd == "STOP") stopMotor();					// just send the current reading... the loadcell is continuously sampled
+  if (inCmd == "STOP") stopMotor();
   else if (inCmd == "POSI") sendMotorPosition();
   else if (inCmd == "ENAB") enableMotor();
   else if (inCmd == "DISA") disableMotor();
@@ -1155,7 +1161,13 @@ void parseCmd() {
   else if (inCmd == "PSET") resetMotorToZero();
   else if (inCmd == "GOTO") parseGOTO();
   else if (inCmd == "MOVE") parseMOVE();
-
+  else if (inCmd == "CALI") calibrateLoadCell();
+  else if (inCmd == "THR:") {
+    String value_str = inStr.substring(4);
+    threshold_force = value_str.toFloat();
+    Serial.print("Threshold set to: ");
+    Serial.println(threshold_force);
+  }
 }
 
 void stopMotor() {
@@ -1208,4 +1220,34 @@ void parseMOVE() {
   tmpPos = (int32_t) inStr.substring(4).toInt();
   move(tmpPos);
   Serial.print("Incrementing: "); Serial.println(tmpPos);
+}
+
+void calibrateLoadCell() {
+
+    Serial.println("Remove all weight from the scale and press any key when ready");
+    while (!Serial.available()) {
+      delay(100);
+    }
+    while (Serial.available()) Serial.read(); // Clear buffer
+    scale.tare();
+    
+    Serial.println("Place a known weight on the scale and enter its weight in pounds");
+    while (!Serial.available()) {
+      delay(100);
+    }
+    
+    String weight_str = Serial.readStringUntil('\n');
+    float known_weight = weight_str.toFloat();
+    
+    if (known_weight > 0) {
+      float raw_reading = scale.read_average(10);
+      calibration_factor = raw_reading / known_weight;
+      scale.set_scale(calibration_factor);
+      Serial.print("Calibration factor set to: ");
+      Serial.println(calibration_factor);
+      Serial.println("Calibration complete");
+    } else {
+      Serial.println("Invalid weight entered");
+    }
+
 }
