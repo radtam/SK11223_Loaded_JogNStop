@@ -1162,12 +1162,7 @@ void parseCmd() {
   else if (inCmd == "GOTO") parseGOTO();
   else if (inCmd == "MOVE") parseMOVE();
   else if (inCmd == "CALI") calibrateLoadCell();
-  else if (inCmd == "THR:") {
-    String value_str = inStr.substring(4);
-    threshold_force = value_str.toFloat();
-    Serial.print("Threshold set to: ");
-    Serial.println(threshold_force);
-  }
+  else if (inCmd == "THR:") threshold();
 }
 
 void stopMotor() {
@@ -1251,3 +1246,10 @@ void calibrateLoadCell() {
     }
 
 }
+
+void threshold() {
+    String value_str = inStr.substring(4);
+    threshold_force = value_str.toFloat();
+    Serial.print("Threshold set to: ");
+    Serial.println(threshold_force);
+  }
