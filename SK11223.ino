@@ -1,4 +1,4 @@
-//Trying to change the calibration and stuff from the serial monitor to be done in the menu with buttons
+//Still need to add the threshold logic to case 8
 
 #include <AccelStepper.h>
 #include <LiquidCrystal.h>
