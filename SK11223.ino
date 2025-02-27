@@ -3,6 +3,7 @@
 #include <EEPROM.h>
 #include <avr/pgmspace.h>
 #include "TimerOne.h"
+#include <HX711.h> //Loadcell
 
 //*******************************************************
 //**** AVAILABLE IO ON THE ARDUINO LCD KEYPAD SHIELD ****
@@ -24,6 +25,8 @@
 //*******************************************************
 //****							 ****
 //*******************************************************
+#define LOADCELL_DOUT_PIN D2  // Data pin for HX711
+#define LOADCELL_SCK_PIN D3   // Clock pin for HX711
 
 #define STEP_PIN	D11			// Step pin
 #define DIR_PIN		D12			// Direction pin
@@ -91,7 +94,13 @@ const char display39[] PROGMEM = "Move to ?       ";
 const char display40[] PROGMEM = "Mtr Ctrl Active ";
 //						         "0123456789012345"
 const char display41[] PROGMEM = "Set JOG?        ";  //added for jog n stop
-
+const char display42[] PROGMEM = "Load Cell Config";
+const char display43[] PROGMEM = "Calibrate";         //Load cell stuff
+const char display44[] PROGMEM = "Set Threshold";     //Load cell stuff
+const char display45[] PROGMEM = "Set Calib Weight";  //Load cell stuff
+const char display46[] PROGMEM = "Remove weight   ";  //Load cell stuff
+const char display47[] PROGMEM = "Place known wt  ";  //Load cell stuff
+const char display48[] PROGMEM = "Calibration done";  //Load cell stuff
 
 const char* const myDISPLAY[] PROGMEM = { display0, display1, display2, display3, display4, display5,
                                           display6, display7, display8,  display9, display10, display11,
@@ -99,7 +108,9 @@ const char* const myDISPLAY[] PROGMEM = { display0, display1, display2, display3
                                           display18, display19, display20, display21, display22, display23,
                                           display24, display25, display26, display27, display28, display29,
                                           display30, display31, display32, display33, display34, display35,
-                                          display36, display37, display38, display39, display40, display41};
+                                          display36, display37, display38, display39, display40, display41,
+                                          display42, display43, display44, display45, display46, display47, 
+                                          display48 };
 
 #define INDEX_PROG_VER		0
 #define INDEX_MENU			1
@@ -144,10 +155,18 @@ const char* const myDISPLAY[] PROGMEM = { display0, display1, display2, display3
 #define INDEX_MOTOR_ACTIVE	40
 #define INDEX_SET_JOG  41
 
+#define INDEX_LOAD_CELL_CONFIG 42
+#define INDEX_CALIBRATE 43
+#define INDEX_SET_THRESHOLD 44
+#define INDEX_SET_CALIB_WEIGHT 45
+#define INDEX_REMOVE_WEIGHT 46
+#define INDEX_PLACE_WEIGHT 47
+#define INDEX_CALIB_DONE 48
+
 #define MAX_MAIN_MENU		5
 #define MAX_SUB_MENU		5
-//MAIN MENU    STPR MENUs   CYCLE MENUs     MTR CTRL MENUs    Limit MENUs
-uint8_t menuLCD[MAX_MAIN_MENU][MAX_SUB_MENU] = { {1, 2, 3, 5, 0}, {6, 7, 8, 0, 0}, {13, 15, 29, 0, 0}, {27, 28, 41, 39, 16}, {10, 11, 12, 0, 0} };
+//MAIN MENU    STPR MENUs   CYCLE MENUs     MTR CTRL MENUs    LOAD CELL MENUs
+uint8_t menuLCD[MAX_MAIN_MENU][MAX_SUB_MENU] = { {1, 2, 3, 5, 0}, {6, 7, 8, 0, 0}, {13, 15, 29, 0, 0}, {27, 28, 41, 39, 16}, {43, 44, 45, 0, 0} };
 
 #define BUFFER_SIZE		20
 char dispBuffer[BUFFER_SIZE];		// dispBuffer will be used to pull the strings out of program memory and placed in RAM...
