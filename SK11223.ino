@@ -1,4 +1,3 @@
-//Still need to add the threshold logic to case 8
 
 #include <AccelStepper.h>
 #include <LiquidCrystal.h>
@@ -1070,16 +1069,18 @@ void monitorCycleTest(void) {
         
         Serial.print("Current force: ");
         Serial.print(current_force);
-        Serial.print(" | Threshold: ");
-        Serial.println(min_threshold_force);
+        Serial.print(" | Min Threshold: ");
+        Serial.print(min_threshold_force);
+        Serial.print(" | Max Threshold: ");
+        Serial.println(max_threshold_force);
         
-        if (current_force >= min_threshold_force) {
-          myCycleTest.index = 9;  // Proceed if force is above threshold
+        if (current_force >= min_threshold_force && current_force <= max_threshold_force) {
+          myCycleTest.index = 9;  // Proceed if force is within the threshold
           delay(10);
         } else {
           // Pause here - stay in case 8 until threshold is met
           updateDisplay(0, INDEX_CYCLE_PAUSED);
-          Serial.println("Force below threshold - cycle paused");
+          Serial.println("Force outside threshold - cycle paused");
           myCycleTest.index = 3;
         }
         break;
@@ -1164,6 +1165,7 @@ void parseCmd() {
   else if (inCmd == "MOVE") parseMOVE();
   else if (inCmd == "CALI") calibrateLoadCell();
   else if (inCmd == "THRE") threshold();
+  else if (inCmd == "FORC") loadCellValue();
 }
 
 void stopMotor() {
@@ -1267,3 +1269,13 @@ void threshold() {
     Serial.print("Max threshold set to: ");
     Serial.println(max_threshold_force);
   }
+
+void loadCellValue() {
+    current_force = scale.get_units(10);  // Take average of 10 readings
+    //myCycleTest.move_time = (time_ms / 1000);
+    //sTime = millis();
+        
+    Serial.print("Current force: ");
+    Serial.println(current_force);
+
+}
