@@ -1,4 +1,3 @@
-
 #include <AccelStepper.h>
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
@@ -198,6 +197,7 @@ struct btnPress myKeys;
 #define EE_ADDR_BASE			0	// starting location for our stored settings
 #define EE_ADDR_DRIVE			EE_ADDR_BASE
 #define EE_ADDR_CYCLE_DATA		EE_ADDR_DRIVE + sizeof(myDriveSettings)
+#define EE_ADDR_LOAD_CELL_SETTINGS		EE_ADDR_DRIVE + sizeof(myDriveSettings) + sizeof(myLoadCellSettings)
 
 #define EE_CHKSUM_VALID		0x55
 
@@ -240,6 +240,17 @@ struct myStepperDriveSettings {
 };
 struct myStepperDriveSettings myDriveSettings;
 
+HX711 scale;
+struct theLoadCellSettings {
+  
+  float calibration_factor = -7050.0; // Adjust this value during calibration
+  float min_threshold_force = 10.0;       // Initial min threshold in whatever units your load cell measures (lbs)
+  float max_threshold_force = 20.0;       // Initial max threshold in whatever units your load cell measures (lbs)
+  float current_force = 0.0;
+  uint8_t chksum;	
+};
+struct theLoadCellSettings myLoadCellSettings;
+
 struct theEdit {
   uint16_t max_Value;				// max value for the current setting - initialized before editing begins
   uint16_t min_Value;				// min value for the current setting - initialized before editing begins
@@ -268,11 +279,7 @@ AccelStepper myStepperDrive(1, STEP_PIN, DIR_PIN);
 uint32_t Time100ms;
 uint32_t Time1000ms;
 
-HX711 scale;
-float calibration_factor = -7050.0; // Adjust this value during calibration
-float min_threshold_force = 10.0;       // Initial min threshold in whatever units your load cell measures (lbs)
-float max_threshold_force = 20.0;       // Initial max threshold in whatever units your load cell measures (lbs)
-float current_force = 0.0;
+
 
 void setup() {
 
@@ -283,9 +290,11 @@ void setup() {
 
   init_drive_settings();					// get the last settings used for this drive
   init_stepper_drive();					// send the settings to the drive
-
+  
   init_myKeys();							// initialize the key button structure
   init_myCycleTest();						// initialize the Cycle Test data
+
+  init_LoadCell_Settings();
 
   Time100ms = millis();
   Time1000ms = millis();
@@ -382,6 +391,18 @@ void init_myCycleTest(void) {
     myCycleTest.inv_dn_lmt = false;
     myCycleTest.uel_reached = false;
     myCycleTest.del_reached = false;
+  }
+}
+
+void init_LoadCell_Settings(void) {
+  EEPROM.get(EE_ADDR_LOAD_CELL_SETTINGS, myLoadCellSettings);
+
+  if (myCycleTest.chksum != EE_CHKSUM_VALID) {
+    myLoadCellSettings.calibration_factor = -7050.0; // Adjust this value during calibration
+    myLoadCellSettings.min_threshold_force = 10.0;       // Initial min threshold in whatever units your load cell measures (lbs)
+    myLoadCellSettings.max_threshold_force = 20.0;       // Initial max threshold in whatever units your load cell measures (lbs)
+    myLoadCellSettings.current_force = 0.0;
+    myLoadCellSettings.chksum = EE_CHKSUM_VALID;
   }
 }
 
@@ -1063,18 +1084,18 @@ void monitorCycleTest(void) {
         }
       case 8:
         delay(500);  // Keep your existing delay if needed
-        current_force = scale.get_units(10);  // Take average of 10 readings
+        myLoadCellSettings.current_force = scale.get_units(10);  // Take average of 10 readings
         myCycleTest.move_time = (time_ms / 1000);
         sTime = millis();
         
         Serial.print("Current force: ");
-        Serial.print(current_force);
+        Serial.print(myLoadCellSettings.current_force);
         Serial.print(" | Min Threshold: ");
-        Serial.print(min_threshold_force);
+        Serial.print(myLoadCellSettings.min_threshold_force);
         Serial.print(" | Max Threshold: ");
-        Serial.println(max_threshold_force);
+        Serial.println(myLoadCellSettings.max_threshold_force);
         
-        if (current_force >= min_threshold_force && current_force <= max_threshold_force) {
+        if (myLoadCellSettings.current_force >= myLoadCellSettings.min_threshold_force && myLoadCellSettings.current_force <= myLoadCellSettings.max_threshold_force) {
           myCycleTest.index = 9;  // Proceed if force is within the threshold
           delay(10);
         } else {
@@ -1239,10 +1260,10 @@ void calibrateLoadCell() {
     
     if (known_weight > 0) {
       float raw_reading = scale.read_average(10);
-      calibration_factor = raw_reading / known_weight;
-      scale.set_scale(calibration_factor);
+      myLoadCellSettings.calibration_factor = raw_reading / known_weight;
+      scale.set_scale(myLoadCellSettings.calibration_factor);
       Serial.print("Calibration factor set to: ");
-      Serial.println(calibration_factor);
+      Serial.println(myLoadCellSettings.calibration_factor);
       Serial.println("Calibration complete");
     } else {
       Serial.println("Invalid weight entered");
@@ -1271,11 +1292,11 @@ void threshold() {
   }
 
 void loadCellValue() {
-    current_force = scale.get_units(10);  // Take average of 10 readings
+    myLoadCellSettings.current_force = scale.get_units(10);  // Take average of 10 readings
     //myCycleTest.move_time = (time_ms / 1000);
     //sTime = millis();
         
     Serial.print("Current force: ");
-    Serial.println(current_force);
+    Serial.println(myLoadCellSettings.current_force);
 
 }
