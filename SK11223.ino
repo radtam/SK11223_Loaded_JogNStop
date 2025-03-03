@@ -1277,18 +1277,18 @@ void threshold() {
       delay(100);
     }
     String value_str = Serial.readStringUntil('\n');
-    float min_threshold_force = value_str.toFloat();
+    myLoadCellSettings.min_threshold_force = value_str.toFloat();
     Serial.print("Min threshold set to: ");
-    Serial.println(min_threshold_force);
+    Serial.println(myLoadCellSettings.min_threshold_force);
     
     Serial.println("Enter the maximum threshold force in pounds");
     while (!Serial.available()) {
       delay(100);
     }
     String value_str1 = Serial.readStringUntil('\n');
-    float max_threshold_force = value_str1.toFloat();
+    myLoadCellSettings.max_threshold_force = value_str1.toFloat();
     Serial.print("Max threshold set to: ");
-    Serial.println(max_threshold_force);
+    Serial.println(myLoadCellSettings.max_threshold_force);
   }
 
 void loadCellValue() {
