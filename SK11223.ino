@@ -243,10 +243,11 @@ struct myStepperDriveSettings myDriveSettings;
 HX711 scale;
 struct theLoadCellSettings {
   
-  float calibration_factor = -7050.0; // Adjust this value during calibration
-  float min_threshold_force = 10.0;       // Initial min threshold in whatever units your load cell measures (lbs)
-  float max_threshold_force = 20.0;       // Initial max threshold in whatever units your load cell measures (lbs)
-  float current_force = 0.0;
+  float calibration_offset;
+  float calibration_scale;         // Adjust this value during calibration
+  float min_threshold_force;       // Initial min threshold in whatever units your load cell measures (lbs)
+  float max_threshold_force;       // Initial max threshold in whatever units your load cell measures (lbs)
+  float current_force;
   uint8_t chksum;	
 };
 struct theLoadCellSettings myLoadCellSettings;
@@ -295,6 +296,11 @@ void setup() {
   init_myCycleTest();						// initialize the Cycle Test data
 
   init_LoadCell_Settings();
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(myLoadCellSettings.calibration_scale);
+  scale.set_offset(myLoadCellSettings.calibration_offset);
+  //scale.set_scale();
+  //scale.tare();  // Reset the scale to 0
 
   Time100ms = millis();
   Time1000ms = millis();
@@ -303,9 +309,7 @@ void setup() {
 
   pinMode(0, INPUT);
   //pinMode(BREAK_BEAM_PIN, INPUT);
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-  scale.set_scale();
-  scale.tare();  // Reset the scale to 0
+  
 
 }
 
@@ -398,7 +402,10 @@ void init_LoadCell_Settings(void) {
   EEPROM.get(EE_ADDR_LOAD_CELL_SETTINGS, myLoadCellSettings);
 
   if (myCycleTest.chksum != EE_CHKSUM_VALID) {
-    myLoadCellSettings.calibration_factor = -7050.0; // Adjust this value during calibration
+    myLoadCellSettings.calibration_offset = 689937;
+    //scale.set_scale(myLoadCellSettings.calibration_offset);
+    myLoadCellSettings.calibration_scale = 464749.53; // Adjust this value during calibration
+    //scale.set_offset(myLoadCellSettings.calibration_scale);
     myLoadCellSettings.min_threshold_force = 10.0;       // Initial min threshold in whatever units your load cell measures (lbs)
     myLoadCellSettings.max_threshold_force = 20.0;       // Initial max threshold in whatever units your load cell measures (lbs)
     myLoadCellSettings.current_force = 0.0;
@@ -1187,6 +1194,7 @@ void parseCmd() {
   else if (inCmd == "CALI") calibrateLoadCell();
   else if (inCmd == "THRE") threshold();
   else if (inCmd == "FORC") loadCellValue();
+  else if (inCmd == "FACT") factorValues();
 }
 
 void stopMotor() {
@@ -1248,7 +1256,9 @@ void calibrateLoadCell() {
       delay(100);
     }
     while (Serial.available()) Serial.read(); // Clear buffer
+    scale.set_scale();
     scale.tare();
+    myLoadCellSettings.calibration_offset = scale.get_scale();
     
     Serial.println("Place a known weight on the scale and enter its weight in pounds");
     while (!Serial.available()) {
@@ -1260,10 +1270,10 @@ void calibrateLoadCell() {
     
     if (known_weight > 0) {
       float raw_reading = scale.read_average(10);
-      myLoadCellSettings.calibration_factor = raw_reading / known_weight;
-      scale.set_scale(myLoadCellSettings.calibration_factor);
+      myLoadCellSettings.calibration_scale = raw_reading / known_weight;
+      scale.set_scale(myLoadCellSettings.calibration_scale);
       Serial.print("Calibration factor set to: ");
-      Serial.println(myLoadCellSettings.calibration_factor);
+      Serial.println(myLoadCellSettings.calibration_scale);
       Serial.println("Calibration complete");
     } else {
       Serial.println("Invalid weight entered");
@@ -1299,4 +1309,11 @@ void loadCellValue() {
     Serial.print("Current force: ");
     Serial.println(myLoadCellSettings.current_force);
 
+}
+
+void factorValues() {
+    Serial.print("Scale: ");
+    Serial.print(scale.get_scale());
+    Serial.print(" | Offset: ");
+    Serial.println(scale.get_offset());
 }
