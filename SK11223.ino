@@ -1268,7 +1268,6 @@ void calibrateLoadCell() {
     scale.tare();
     myLoadCellSettings.calibration_offset = scale.get_offset();
     
-    
     Serial.println("Place a known weight on the scale and enter its weight in pounds");
     while (!Serial.available()) {
       delay(100);
@@ -1283,6 +1282,7 @@ void calibrateLoadCell() {
       scale.set_scale(myLoadCellSettings.calibration_scale);
       Serial.print("Calibration factor set to: ");
       Serial.println(myLoadCellSettings.calibration_scale);
+      saveLoadCellSettings();
       Serial.println("Calibration complete");
     } else {
       Serial.println("Invalid weight entered");
