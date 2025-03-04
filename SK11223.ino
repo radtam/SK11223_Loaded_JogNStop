@@ -296,11 +296,8 @@ void setup() {
   init_myCycleTest();						// initialize the Cycle Test data
 
   init_LoadCell_Settings();
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-  scale.set_scale(myLoadCellSettings.calibration_scale);
-  scale.set_offset(myLoadCellSettings.calibration_offset);
-  //scale.set_scale();
-  //scale.tare();  // Reset the scale to 0
+  init_LoadCell();
+  
 
   Time100ms = millis();
   Time1000ms = millis();
@@ -403,14 +400,20 @@ void init_LoadCell_Settings(void) {
 
   if (myCycleTest.chksum != EE_CHKSUM_VALID) {
     myLoadCellSettings.calibration_offset = 689937;
-    //scale.set_scale(myLoadCellSettings.calibration_offset);
     myLoadCellSettings.calibration_scale = 464749.53; // Adjust this value during calibration
-    //scale.set_offset(myLoadCellSettings.calibration_scale);
     myLoadCellSettings.min_threshold_force = 10.0;       // Initial min threshold in whatever units your load cell measures (lbs)
     myLoadCellSettings.max_threshold_force = 20.0;       // Initial max threshold in whatever units your load cell measures (lbs)
     myLoadCellSettings.current_force = 0.0;
     myLoadCellSettings.chksum = EE_CHKSUM_VALID;
   }
+}
+
+void init_LoadCell(void) {
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(myLoadCellSettings.calibration_scale);
+  scale.set_offset(myLoadCellSettings.calibration_offset);
+  //scale.set_scale();
+  //scale.tare();  // Reset the scale to 0
 }
 
 void saveCycleData(void) {
@@ -422,6 +425,11 @@ void saveStepperDriveSettings(void) {
   myDriveSettings.chksum = EE_CHKSUM_VALID;
   EEPROM.put(EE_ADDR_DRIVE, myDriveSettings);
   init_stepper_drive();
+}
+
+void saveLoadCellSettings(void) {
+  myLoadCellSettings.chksum = EE_CHKSUM_VALID;
+  EEPROM.put(EE_ADDR_LOAD_CELL_SETTINGS, myLoadCellSettings);
 }
 
 void bump(int dir) {
@@ -1258,7 +1266,8 @@ void calibrateLoadCell() {
     while (Serial.available()) Serial.read(); // Clear buffer
     scale.set_scale();
     scale.tare();
-    myLoadCellSettings.calibration_offset = scale.get_scale();
+    myLoadCellSettings.calibration_offset = scale.get_offset();
+    
     
     Serial.println("Place a known weight on the scale and enter its weight in pounds");
     while (!Serial.available()) {
