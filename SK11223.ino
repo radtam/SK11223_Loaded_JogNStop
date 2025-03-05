@@ -1308,13 +1308,13 @@ void threshold() {
     myLoadCellSettings.max_threshold_force = value_str1.toFloat();
     Serial.print("Max threshold set to: ");
     Serial.println(myLoadCellSettings.max_threshold_force);
+    saveLoadCellSettings();
   }
 
 void loadCellValue() {
     myLoadCellSettings.current_force = scale.get_units(10);  // Take average of 10 readings
     //myCycleTest.move_time = (time_ms / 1000);
     //sTime = millis();
-        
     Serial.print("Current force: ");
     Serial.println(myLoadCellSettings.current_force);
 
